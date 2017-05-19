@@ -26,6 +26,7 @@ if __name__ == "__main__":
         match.start()
     elif args.tactics:
         tactics = t.TacticsSuite()
-        tactics.load("suites\\tactics\\STS3.epd")
-        tactics.start("engines\\wyldchess.exe", timeper=100)
-        tactics.results()
+        tactics.load_all("suites\\tactics\\")
+        #tactics.load("suites\\tactics\\STS3.epd")
+        #tactics.start("engines\\wyldchess.exe", timeper=100)
+        #tactics.results()

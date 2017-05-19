@@ -13,14 +13,14 @@ class PerftSuite():
         self.positions = []
         file = open(path, 'r')
         for line in file:
-            if(len(line) < 3 or line[0] == '#'):
+            if len(line) < 3 or line[0] == '#':
                 continue
 
             line = line.rstrip('\n')
             words = line.split(';')
 
             # Try filter out non-fen strings
-            if(words[0].count('/') != 7):
+            if words[0].count('/') != 7:
                 continue
 
             # Test FEN
@@ -56,9 +56,9 @@ class PerftSuite():
 
             # Check answers
             for a, r in zip(answers, results):
-                if(a[1] != r[1]):
+                if a[1] != r[1]:
                     self.wrong += 1
-                    if(verbose):
+                    if verbose:
                         print("FEN {} expected {} got {}".format(pos[0], a[1], r[1]))
                     break
         t1 = time.time()

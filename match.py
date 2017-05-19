@@ -17,7 +17,7 @@ class EngineMatch:
         params = self.path_cutechess
         for engine in self.engines:
             params += " " + engine
-        params += " -each tc={} -games {} -concurrency {} -tournament gauntlet".format(self.tc, self.games, self.concurrency)
+        params += " " + "-each tc={} -games {} -concurrency {} -tournament gauntlet".format(self.tc, self.games, self.concurrency)
 
         p = subprocess.Popen(params, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.PIPE)
 
@@ -25,7 +25,7 @@ class EngineMatch:
             l = p.stdout.readline().decode("utf-8") 
             l = l.rstrip("\r\n")
 
-            if(l[0:24] == "Warning: Illegal PV move"):
+            if l[0:24] == "Warning: Illegal PV move":
               continue
 
             print(l)

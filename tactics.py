@@ -1,24 +1,34 @@
 import chess
 import chess.uci
 import time
+import os
 
 
 class TacticsSuite():
     def __init__(self):
         self.epd = []
 
+    def load_all(self, directory):
+        for root, dirs, files in os.walk(directory):
+            for file in files:
+                if file.endswith('.epd'):
+                    self.load(directory + file)
+                    self.start("engines\\wyldchess.exe", timeper=10)
+                    self.results()
+                    print("")
+
     def load(self, path):
-        self.positions = []
+        self.epd = []
         file = open(path, 'r')
         for line in file:
-            if(len(line) < 3 or line[0] == '#'):
+            if len(line) < 3 or line[0] == '#':
                 continue
 
             line = line.rstrip('\n')
             words = line.split(';')
 
             # Try filter out non-fen strings
-            if(words[0].count('/') != 7):
+            if words[0].count('/') != 7:
                 continue
 
             # Test FEN
@@ -33,11 +43,13 @@ class TacticsSuite():
         self.suite_path = path
 
     def start(self, engine_path, timeper=10, verbose=False):
+        # Reset results
+        self.wrong = 0
+
         engine = chess.uci.popen_engine(engine_path)
         engine.uci()
         engine.isready()
         asd = chess.Board()
-        self.wrong = 0
 
         t0 = time.time()
         for line in self.epd:
@@ -47,9 +59,9 @@ class TacticsSuite():
             command = engine.go(movetime=timeper, async_callback=True)
             bestmove, ponder = command.result()
 
-            if(bestmove != board['bm'][0]):
+            if bestmove != board['bm'][0]:
                 self.wrong += 1
-                if(verbose):
+                if verbose:
                     print("Expected {} got {}".format(bestmove, board['bm'][0]))
         t1 = time.time()
 

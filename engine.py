@@ -26,9 +26,9 @@ class MyEngine(chess.uci.Engine):
                 depth = 0
                 nodes = 0
                 for i, subword in enumerate(words):
-                    if(subword == "depth"):
+                    if subword == "depth":
                         depth = words[i+1]
-                    elif(subword == "nodes"): 
+                    elif subword == "nodes": 
                         nodes = words[i+1]
                 self.results.append([depth, nodes])
             elif words[0] == "nodes":
