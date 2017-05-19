@@ -40,7 +40,7 @@ class PerftSuite():
             # Add FEN and answers
             self.positions.append([words[0], answers])
 
-    def start(self, engine_path, depth=3):
+    def start(self, engine_path, depth=3, verbose=False):
         engine = chess.uci.popen_engine(engine_path, engine_cls=e.MyEngine)
         engine.uci()
         engine.isready()
@@ -58,9 +58,12 @@ class PerftSuite():
             for a, r in zip(answers, results):
                 if(a[1] != r[1]):
                     self.wrong += 1
+                    if(verbose):
+                        print("FEN {} expected {} got {}".format(pos[0], a[1], r[1]))
                     break
         t1 = time.time()
 
+        engine.stop()
         engine.quit()
 
         # Save results

@@ -25,4 +25,7 @@ if __name__ == "__main__":
         match.add_engine("Cinnamon-2", "uci", "engines\\cinnamon_2.0_x64-INTEL.exe")
         match.start()
     elif args.tactics:
-        pass
+        tactics = t.TacticsSuite()
+        tactics.load("suites\\tactics\\STS3.epd")
+        tactics.start("engines\\wyldchess.exe", timeper=100)
+        tactics.results()

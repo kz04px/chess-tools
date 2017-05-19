@@ -4,7 +4,7 @@ import subprocess
 class EngineMatch:
     def __init__(self):
         self.engines = []
-    
+
     def add_engine(self, name, protocol, path):
         self.engines.append("-engine name=\"{}\" proto={} cmd=\"{}\"".format(name, protocol, path))
 
