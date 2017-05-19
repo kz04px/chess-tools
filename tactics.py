@@ -1,6 +1,5 @@
 import chess
 import chess.uci
-import engine as e
 import time
 
 
@@ -34,7 +33,7 @@ class TacticsSuite():
         self.suite_path = path
 
     def start(self, engine_path, timeper=10, verbose=False):
-        engine = chess.uci.popen_engine(engine_path, engine_cls=e.MyEngine)
+        engine = chess.uci.popen_engine(engine_path)
         engine.uci()
         engine.isready()
         asd = chess.Board()
