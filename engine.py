@@ -31,7 +31,7 @@ class MyEngine(chess.uci.Engine):
                     elif(subword == "nodes"): 
                         nodes = words[i+1]
                 self.results.append([depth, nodes])
-            elif words[0] == "done":
+            elif words[0] == "nodes":
                 self.lock.release()
 
     # The engine has to support the perft command
