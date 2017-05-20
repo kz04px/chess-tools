@@ -2,6 +2,7 @@ import chess
 import chess.uci
 import engine as e
 import time
+import os
 
 
 class PerftSuite():
@@ -9,8 +10,37 @@ class PerftSuite():
         self.depth = 3
         self.positions = []
 
+    def parse(self, params):
+        for p in params:
+            words = p.split('=')
+
+            if words[0] == "suite":
+                self.suite_path = words[1]
+            elif words[0] == "depth":
+                self.depth = words[1]
+            elif words[0] == "engine":
+                self.engine_path = words[1]
+            else:
+                print("Warning: Unknown parameter {}".format(words[0]))
+
+    def run(self, verbose=False):
+        if os.path.isdir(self.suite_path):
+            directory = self.suite_path
+            for root, dirs, files in os.walk(directory):
+                for file in files:
+                    if file.endswith('.epd'):
+                        self.load(directory + file)
+                        self.start(self.engine_path, depth=self.depth)
+                        self.results()
+                        print("")
+        else:
+            self.load(self.suite_path)
+            self.start(self.engine_path, depth=self.depth)
+            self.results()
+
     def load(self, path):
         self.positions = []
+
         file = open(path, 'r')
         for line in file:
             if len(line) < 3 or line[0] == '#':
@@ -39,6 +69,7 @@ class PerftSuite():
 
             # Add FEN and answers
             self.positions.append([words[0], answers])
+        self.suite_path = path
 
     def start(self, engine_path, depth=3, verbose=False):
         engine = chess.uci.popen_engine(engine_path, engine_cls=e.MyEngine)
@@ -73,8 +104,9 @@ class PerftSuite():
         self.depth = depth
 
     def results(self):
-        #print("File:  {}".format(path))
-        print("Pass:  {}/{} ({:.1f}%)".format(self.right, self.total, 100*self.right/self.total))
-        print("Fail:  {}/{} ({:.1f}%)".format(self.wrong, self.total, 100*self.wrong/self.total))
-        print("Depth: {}".format(self.depth))
-        print("Time:  {:.2f}s".format(self.time_used))
+        print("Engine: {}".format(self.engine_path))
+        print("Suite:  {}".format(self.suite_path))
+        print("Pass:   {}/{} ({:.1f}%)".format(self.right, self.total, 100*self.right/self.total))
+        print("Fail:   {}/{} ({:.1f}%)".format(self.wrong, self.total, 100*self.wrong/self.total))
+        print("Depth:  {}".format(self.depth))
+        print("Time:   {:.2f}s".format(self.time_used))

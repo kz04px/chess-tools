@@ -8,14 +8,38 @@ class TacticsSuite():
     def __init__(self):
         self.epd = []
 
-    def load_all(self, directory):
-        for root, dirs, files in os.walk(directory):
-            for file in files:
-                if file.endswith('.epd'):
-                    self.load(directory + file)
-                    self.start("engines\\wyldchess.exe", timeper=10)
-                    self.results()
-                    print("")
+    def parse(self, params):
+        for p in params:
+            words = p.split('=')
+
+            if words[0] == "suite":
+                self.suite_path = words[1]
+            elif words[0] == "time":
+                self.timeper = words[1]
+            elif words[0] == "engine":
+                self.engine_path = words[1]
+            else:
+                print("Warning: Unknown parameter {}".format(words[0]))
+
+    def run(self, verbose=False):
+        epd_files = []
+
+        # Collect .epd files
+        if os.path.isdir(self.suite_path):
+            directory = self.suite_path
+            for root, dirs, files in os.walk(directory):
+                for file in files:
+                    if file.endswith('.epd'):
+                        epd_files.append(directory + file)
+        else:
+            epd_files.append(self.suite_path)
+
+        # Run the tests
+        for file in epd_files:
+            self.load(file)
+            self.start(self.engine_path, timeper=self.timeper)
+            self.results()
+            print("")
 
     def load(self, path):
         self.epd = []
