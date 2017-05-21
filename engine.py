@@ -30,7 +30,9 @@ class MyEngine(chess.uci.Engine):
                         depth = words[i+1]
                     elif subword == "nodes": 
                         nodes = words[i+1]
-                self.results.append([depth, nodes])
+
+                if int(depth) > 0 and int(nodes) > 0:
+                    self.results.append([depth, nodes])
             elif words[0] == "nodes":
                 self.lock.release()
 
