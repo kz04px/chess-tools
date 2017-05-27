@@ -8,7 +8,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Automated chess engine testing')
     parser.add_argument('--version', action='version', version='Engine tester v1')
     parser.add_argument('-perft', nargs='*')
-    parser.add_argument('-split', action='store_true')
+    parser.add_argument('-split', nargs='*')
     parser.add_argument('-match', action='store_true')
     parser.add_argument('-tactics', nargs='*')
     parser.add_argument('-verbose', action='store_true')

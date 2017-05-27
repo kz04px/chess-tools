@@ -71,7 +71,19 @@ class PerftSuite():
             self.positions.append([words[0], answers])
         self.suite_path = path
 
-    def split(self, fen, depth=1):
+    def split(self, params):
+        fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
+        depth = 1
+
+        for p in params:
+            words = p.split('=')
+            if words[0] == "fen":
+                fen = words[1]
+            elif words[0] == "depth":
+                depth = int(words[1])
+            else:
+                print("Warning: Unknown parameter {}".format(words[0]))
+
         engine1 = chess.uci.popen_engine("engines\\baislicka-debug.exe", engine_cls=e.MyEngine)
         engine1.uci()
         engine1.isready()
@@ -82,10 +94,8 @@ class PerftSuite():
         engine2.isready()
         total2 = 0;
 
-        fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
         print("FEN: {}".format(fen))
         board = chess.Board(fen)
-        board.push_uci("a2a4")
 
         for move in board.legal_moves:
             board.push(move)
