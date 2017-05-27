@@ -71,6 +71,46 @@ class PerftSuite():
             self.positions.append([words[0], answers])
         self.suite_path = path
 
+    def split(self, fen, depth=1):
+        engine1 = chess.uci.popen_engine("engines\\baislicka-debug.exe", engine_cls=e.MyEngine)
+        engine1.uci()
+        engine1.isready()
+        total1 = 0;
+
+        engine2 = chess.uci.popen_engine("engines\\wyldchess.exe", engine_cls=e.MyEngine)
+        engine2.uci()
+        engine2.isready()
+        total2 = 0;
+
+        fen = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1"
+        print("FEN: {}".format(fen))
+        board = chess.Board(fen)
+        board.push_uci("a2a4")
+
+        for move in board.legal_moves:
+            board.push(move)
+            
+            engine1.position(board)
+            results1 = engine1.perft(depth)
+            ans1 = int(results1[depth-1][1])
+            total1 += ans1
+            
+            engine2.position(board)
+            results2 = engine2.perft(depth)
+            ans2 = int(results2[depth-1][1])
+            total2 += ans2
+            
+            board.pop()
+
+            print("{} {} {} - {}".format(move, ans1, ans2, ans1==ans2))
+        print("Total {} {} - {}".format(total1, total2, total1==total2))
+
+        engine1.stop()
+        engine2.stop()
+
+        engine1.quit()
+        engine2.quit()
+
     def start(self, engine_path, depth=3, verbose=False):
         engine = chess.uci.popen_engine(engine_path, engine_cls=e.MyEngine)
         engine.uci()
@@ -89,7 +129,7 @@ class PerftSuite():
             for a, r in zip(answers, results):
                 if a[1] != r[1]:
                     self.wrong += 1
-                    if verbose:
+                    if True:#verbose:
                         print("FEN {} expected {} got {}".format(pos[0], a[1], r[1]))
                     break
         t1 = time.time()
