@@ -30,12 +30,12 @@ class PerftSuite():
                 for file in files:
                     if file.endswith('.epd'):
                         self.load(directory + file)
-                        self.start(self.engine_path, depth=self.depth)
+                        self.start(self.engine_path, depth=int(self.depth))
                         self.results()
                         print("")
         else:
             self.load(self.suite_path)
-            self.start(self.engine_path, depth=self.depth)
+            self.start(self.engine_path, depth=int(self.depth))
             self.results()
 
     def load(self, path):
@@ -111,7 +111,7 @@ class PerftSuite():
             total2 += ans2
             
             board.pop()
-
+            
             print("{} {} {} - {}".format(move, ans1, ans2, ans1==ans2))
         print("Total {} {} - {}".format(total1, total2, total1==total2))
 
@@ -126,14 +126,29 @@ class PerftSuite():
         engine.uci()
         engine.isready()
         self.wrong = 0
-
+        self.nodes = 0
+        
+        test_num = 0
         t0 = time.time()
         for pos in self.positions:
             board = chess.Board(pos[0])
             engine.position(board)
-
+            
             answers = pos[1]
-            results = engine.perft(depth)
+            
+            new_depth = min(depth, int(len(answers)))
+            
+            if new_depth < 1:
+                print("ERROR: test {} missing any depth values".format(test_num+1))
+                continue
+            
+            test_num = test_num + 1
+            
+            if new_depth != depth:
+                print("WARNING: test {} missing node count for depth {}".format(test_num, depth))
+            
+            self.nodes += int(answers[new_depth-1][1])
+            results = engine.perft(new_depth)
 
             # Check answers
             for a, r in zip(answers, results):
@@ -148,7 +163,7 @@ class PerftSuite():
         engine.quit()
 
         # Save results
-        self.total = len(self.positions)
+        self.total = test_num
         self.right = self.total-self.wrong
         self.time_used = t1 - t0
         self.depth = depth
@@ -159,4 +174,6 @@ class PerftSuite():
         print("Pass:   {}/{} ({:.1f}%)".format(self.right, self.total, 100*self.right/self.total))
         print("Fail:   {}/{} ({:.1f}%)".format(self.wrong, self.total, 100*self.wrong/self.total))
         print("Depth:  {}".format(self.depth))
+        print("Nodes:  {:,}".format(self.nodes))
         print("Time:   {:.2f}s".format(self.time_used))
+        print("NPS:    {:,}".format(int(self.nodes/self.time_used)))

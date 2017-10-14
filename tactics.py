@@ -30,7 +30,7 @@ class TacticsSuite():
             for root, dirs, files in os.walk(directory):
                 for file in files:
                     if file.endswith('.epd'):
-                        epd_files.append(directory + file)
+                        epd_files.append(directory + '/' + file)
         else:
             epd_files.append(self.suite_path)
 
