@@ -1,179 +1,172 @@
 import chess
-import chess.uci
-import engine as e
+import subprocess
 import time
-import os
+import argparse
+import queue
+import threading
 
 
-class PerftSuite():
+class Engine:
+    def __init__(self, path):
+        self.p = subprocess.Popen(path, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, stdin=subprocess.PIPE)
+
+    def send(self, message):
+        self.p.stdin.write(message.encode('utf-8'))
+        self.p.stdin.flush()
+
+    def recv(self):
+        return self.p.stdout.readline().decode('utf-8')
+
+    def get(self, word):
+        while self.p.poll() is None:
+            l = self.recv()
+            l = l.rstrip('\n')
+
+            parts = l.split(' ')
+            if len(parts) > 1  and parts[0] == word:
+                return parts[1]
+            elif len(parts) == 1:
+                try:
+                    return int(parts[1])
+                except:
+                    pass
+        return None
+
+    def running(self):
+        return self.p.poll() == None
+
+
+class Manager:
     def __init__(self):
-        self.depth = 3
-        self.positions = []
+        self.q = queue.Queue()
+        self.lock = threading.Lock()
 
-    def parse(self, params):
-        for p in params:
-            words = p.split('=')
+    def go(self, enginePath, depth=4, numThreads=1):
+        if self.q.qsize() < 1:
+            print("ERROR: no positions loaded")
+            return
 
-            if words[0] == "suite":
-                self.suite_path = words[1]
-            elif words[0] == "depth":
-                self.depth = words[1]
-            elif words[0] == "engine":
-                self.engine_path = words[1]
-            else:
-                print("Warning: Unknown parameter {}".format(words[0]))
+        if numThreads < 1:
+            print("ERROR: number of threads must be >= 1")
+            return
 
-    def run(self, verbose=False):
-        if os.path.isdir(self.suite_path):
-            directory = self.suite_path
-            for root, dirs, files in os.walk(directory):
-                for file in files:
-                    if file.endswith('.epd'):
-                        self.load(directory + file)
-                        self.start(self.engine_path, depth=int(self.depth))
-                        self.results()
-                        print("")
-        else:
-            self.load(self.suite_path)
-            self.start(self.engine_path, depth=int(self.depth))
-            self.results()
+        self.total = 0
+        self.incorrect = 0
+
+        start = time.time()
+        threads = []
+        for i in range(numThreads):
+            t = threading.Thread(target=self.worker, args=([enginePath, depth]))
+            t.start()
+            threads.append(t)
+
+        for t in threads:
+            t.join()
+        end = time.time()
+
+        if self.total == 0:
+            print("No positions analysed")
+            return
+
+        print("Depth: {}".format(depth))
+        print("Engine: {}".format(enginePath))
+        print("")
+        print("Correct: {}".format(self.total - self.incorrect))
+        print("Incorrect: {}".format(self.incorrect))
+        print("Total: {}".format(self.total))
+        print("Accuracy: {:.2f}%".format(100.0*(self.total - self.incorrect)/self.total))
+        print("Threads: {}".format(numThreads))
+        print("Time: {:.2f}s".format(end - start))
 
     def load(self, path):
-        self.positions = []
+        self.q.queue.clear()
+        try:
+            with open(path, "r") as f:
+                for line in f:
+                    try:
+                        board, results = chess.Board().from_epd(line)
+                        self.q.put(line)
+                    except:
+                        pass
+        except Exception as e:
+            print(e)
+            return False
+        return True
 
-        file = open(path, 'r')
-        for line in file:
-            if len(line) < 3 or line[0] == '#':
-                continue
+    def worker(self, enginePath, depth):
+        try:
+            p = Engine(enginePath)
+        except Exception as e:
+            print(e)
+            return
 
-            line = line.rstrip('\n')
-            words = line.split(';')
+        p.send("uci\n")
+        p.send("isready\n")
 
-            # Try filter out non-fen strings
-            if words[0].count('/') != 7:
-                continue
+        while self.q.empty() == False:
+            line = self.q.get()
 
-            # Test FEN
             try:
-                board = chess.Board(words[0])
-            except ValueError:
-                print("Invalid FEN: {}".format(words[0]))
+                board, results = chess.Board().from_epd(line)
+            except Exception as e:
+                print("ERROR: {}".format(e))
                 continue
 
-            # Parse answers
-            answers = []
-            for word in words[1:]:
-                subwords = word.split(' ')
-                subwords.remove('')
-                answers.append([subwords[1], subwords[2]])
+            self.lock.acquire()
+            self.total += 1
+            self.lock.release()
+            fen = board.fen()
 
-            # Add FEN and answers
-            self.positions.append([words[0], answers])
-        self.suite_path = path
+            if p.running() == False:
+                print("ERROR: engine stopped running")
+                break
 
-    def split(self, params):
-        fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"
-        depth = 1
+            p.send("position fen {}\n".format(fen))
 
-        for p in params:
-            words = p.split('=')
-            if words[0] == "fen":
-                fen = words[1]
-            elif words[0] == "depth":
-                depth = int(words[1])
-            else:
-                print("Warning: Unknown parameter {}".format(words[0]))
+            for d in range(1, depth+1):
+                depthString = "D" + str(d)
 
-        engine1 = chess.uci.popen_engine("engines\\baislicka-debug.exe", engine_cls=e.MyEngine)
-        engine1.uci()
-        engine1.isready()
-        total1 = 0;
+                if depthString in results:
+                    p.send(("perft {}\n").format(d))
 
-        engine2 = chess.uci.popen_engine("engines\\wyldchess.exe", engine_cls=e.MyEngine)
-        engine2.uci()
-        engine2.isready()
-        total2 = 0;
+                    nodes = p.get("nodes")
 
-        print("FEN: {}".format(fen))
-        board = chess.Board(fen)
+                    if nodes != str(results[depthString]):
+                        self.lock.acquire()
+                        if verbose:
+                            print("Depth {}  got {}  expected {}  position {}".format(d, nodes, results[depthString], fen))
+                        self.incorrect += 1
+                        self.lock.release()
+                        break
+                else:
+                    self.lock.acquire()
+                    if verbose:
+                        print("WARNING: depth {} missing from position {}".format(d, fen))
+                    self.lock.release()
 
-        for move in board.legal_moves:
-            board.push(move)
-            
-            engine1.position(board)
-            results1 = engine1.perft(depth)
-            ans1 = int(results1[depth-1][1])
-            total1 += ans1
-            
-            engine2.position(board)
-            results2 = engine2.perft(depth)
-            ans2 = int(results2[depth-1][1])
-            total2 += ans2
-            
-            board.pop()
-            
-            print("{} {} {} - {}".format(move, ans1, ans2, ans1==ans2))
-        print("Total {} {} - {}".format(total1, total2, total1==total2))
 
-        engine1.stop()
-        engine2.stop()
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='UCI chess engine perft')
+    parser.add_argument("-engine", type=str, help="path to the engine")
+    parser.add_argument("-suite", type=str, help="path to the test suite")
+    parser.add_argument("-depth", type=int, help="perft depth")
+    parser.add_argument("-threads", type=int, help="threads to use")
+    args = parser.parse_args()
 
-        engine1.quit()
-        engine2.quit()
+    if args.depth < 1:
+        print("ERROR: depth must be >= 1")
+        exit(1)
 
-    def start(self, engine_path, depth=3, verbose=False):
-        engine = chess.uci.popen_engine(engine_path, engine_cls=e.MyEngine)
-        engine.uci()
-        engine.isready()
-        self.wrong = 0
-        self.nodes = 0
-        
-        test_num = 0
-        t0 = time.time()
-        for pos in self.positions:
-            board = chess.Board(pos[0])
-            engine.position(board)
-            
-            answers = pos[1]
-            
-            new_depth = min(depth, int(len(answers)))
-            
-            if new_depth < 1:
-                print("ERROR: test {} missing any depth values".format(test_num+1))
-                continue
-            
-            test_num = test_num + 1
-            
-            if new_depth != depth:
-                print("WARNING: test {} missing node count for depth {}".format(test_num, depth))
-            
-            self.nodes += int(answers[new_depth-1][1])
-            results = engine.perft(new_depth)
+    if args.depth > 7:
+        print("WARNING: that's a lot of depth")
 
-            # Check answers
-            for a, r in zip(answers, results):
-                if a[1] != r[1]:
-                    self.wrong += 1
-                    if True:#verbose:
-                        print("FEN {} expected {} got {}".format(pos[0], a[1], r[1]))
-                    break
-        t1 = time.time()
+    if args.threads < 1:
+        print("ERROR: threads must be >= 1")
+        exit(2)
 
-        engine.stop()
-        engine.quit()
+    if args.threads > 4:
+        print("WARNING: that's a lot of threads")
 
-        # Save results
-        self.total = test_num
-        self.right = self.total-self.wrong
-        self.time_used = t1 - t0
-        self.depth = depth
-
-    def results(self):
-        print("Engine: {}".format(self.engine_path))
-        print("Suite:  {}".format(self.suite_path))
-        print("Pass:   {}/{} ({:.1f}%)".format(self.right, self.total, 100*self.right/self.total))
-        print("Fail:   {}/{} ({:.1f}%)".format(self.wrong, self.total, 100*self.wrong/self.total))
-        print("Depth:  {}".format(self.depth))
-        print("Nodes:  {:,}".format(self.nodes))
-        print("Time:   {:.2f}s".format(self.time_used))
-        print("NPS:    {:,}".format(int(self.nodes/self.time_used)))
+    perft = Manager()
+    perft.load(args.suite)
+    perft.go(args.engine, args.depth, args.threads)

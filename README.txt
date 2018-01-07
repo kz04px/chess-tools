@@ -1,7 +1,4 @@
-A small python program to help automate chess engine testing
-
-Matches:
-  Uses the cutechess CLI to run engine matches and provide elo calculations
+A small python program to help automate some chess engine testing
 
 Tactics:
   Uses Python-Chess to read standard .epd files
@@ -33,4 +30,3 @@ Perft example:
 Requires:
   - Python 3
   - Python-Chess https://pypi.python.org/pypi/python-chess
-  - cutechess https://github.com/cutechess/cutechess

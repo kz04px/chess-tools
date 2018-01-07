@@ -1,108 +1,121 @@
 import chess
 import chess.uci
 import time
-import os
+import argparse
+import queue
+import threading
 
 
-class TacticsSuite():
+class Manager:
     def __init__(self):
-        self.epd = []
+        self.q = queue.Queue()
+        self.lock = threading.Lock()
 
-    def parse(self, params):
-        for p in params:
-            words = p.split('=')
+    def go(self, enginePath, movetime=100, numThreads=1, verbose=False):
+        if self.q.qsize() < 1:
+            print("ERROR: no positions loaded")
+            return
 
-            if words[0] == "suite":
-                self.suite_path = words[1]
-            elif words[0] == "time":
-                self.timeper = words[1]
-            elif words[0] == "engine":
-                self.engine_path = words[1]
-            else:
-                print("Warning: Unknown parameter {}".format(words[0]))
+        if numThreads < 1:
+            print("ERROR: number of threads must be >= 1")
+            return
 
-    def run(self, verbose=False):
-        epd_files = []
+        self.total = 0
+        self.incorrect = 0
 
-        # Collect .epd files
-        if os.path.isdir(self.suite_path):
-            directory = self.suite_path
-            for root, dirs, files in os.walk(directory):
-                for file in files:
-                    if file.endswith('.epd'):
-                        epd_files.append(directory + '/' + file)
-        else:
-            epd_files.append(self.suite_path)
+        start = time.time()
+        threads = []
+        for i in range(numThreads):
+            t = threading.Thread(target=self.worker, args=([enginePath, movetime, verbose]))
+            t.start()
+            threads.append(t)
 
-        # Run the tests
-        for file in epd_files:
-            self.load(file)
-            self.start(self.engine_path, timeper=self.timeper)
-            self.results()
-            print("")
+        for t in threads:
+            t.join()
+        end = time.time()
+
+        if self.total == 0:
+            print("No positions analysed")
+            return
+
+        print("Movetime: {}".format(movetime))
+        print("Engine: {}".format(enginePath))
+        print("")
+        print("Correct: {}".format(self.total - self.incorrect))
+        print("Incorrect: {}".format(self.incorrect))
+        print("Total: {}".format(self.total))
+        print("Accuracy: {:.2f}%".format(100.0*(self.total - self.incorrect)/self.total))
+        print("Threads: {}".format(numThreads))
+        print("Time: {:.2f}s".format(end - start))
 
     def load(self, path):
-        self.epd = []
-        file = open(path, 'r')
-        for line in file:
-            if len(line) < 3 or line[0] == '#':
-                continue
+        self.q.queue.clear()
+        try:
+            with open(path, "r") as f:
+                for line in f:
+                    try:
+                        asd = chess.Board().set_epd(line)
+                        if "bm" in asd:
+                            self.q.put(line)
+                    except:
+                        pass
+        except Exception as e:
+            print(e)
+            return False
+        return True
 
-            line = line.rstrip('\n')
-            words = line.split(';')
-
-            # Try filter out non-fen strings
-            if words[0].count('/') != 7:
-                continue
-
-            # Test FEN
-            try:
-                board = chess.Board()
-                board = board.set_epd(words[0])
-            except ValueError:
-                print("Invalid FEN: {}".format(words[0]))
-                continue
-
-            self.epd.append(line)
-        self.suite_path = path
-
-    def start(self, engine_path, timeper=10, verbose=False):
-        # Reset results
-        self.wrong = 0
-
-        engine = chess.uci.popen_engine(engine_path)
+    def worker(self, enginePath, timeper, verbose):
+        engine = chess.uci.popen_engine(enginePath)
         engine.uci()
         engine.isready()
-        asd = chess.Board()
 
-        t0 = time.time()
-        for line in self.epd:
-            board = asd.set_epd(line)
+        board = chess.Board()
 
-            engine.position(asd)
+        while self.q.empty() == False:
+            line = self.q.get()
+
+            asd = board.set_epd(line)
+
+            self.lock.acquire()
+            self.total += 1
+            self.lock.release()
+
+            engine.position(board)
+
             command = engine.go(movetime=timeper, async_callback=True)
             bestmove, ponder = command.result()
 
-            if bestmove != board['bm'][0]:
-                self.wrong += 1
+            if bestmove != asd["bm"][0]:
+                self.lock.acquire()
                 if verbose:
-                    print("Expected {} got {}".format(bestmove, board['bm'][0]))
-        t1 = time.time()
+                    print("Got {}  expected {}  position {}".format(bestmove, asd["bm"][0], board.fen()))
+                self.incorrect += 1
+                self.lock.release()
 
-        engine.stop()
-        engine.quit()
 
-        # Save results
-        self.engine_path = engine_path
-        self.total = len(self.epd)
-        self.right = self.total-self.wrong
-        self.time_used = t1 - t0
-        self.timeper = timeper
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='UCI chess engine tactics')
+    parser.add_argument("-engine", type=str, help="path to the engine")
+    parser.add_argument("-suite", type=str, help="path to the test suite")
+    parser.add_argument("-movetime", type=int, help="search movetime")
+    parser.add_argument("-threads", type=int, help="threads to use")
+    parser.add_argument("-verbose", help="print extra details", action='store_true')
+    args = parser.parse_args()
 
-    def results(self):
-        print("Engine: {}".format(self.engine_path))
-        print("Suite: {}".format(self.suite_path))
-        print("Pass: {}/{} ({:.1f}%)".format(self.right, self.total, 100*self.right/self.total))
-        print("Fail: {}/{} ({:.1f}%)".format(self.wrong, self.total, 100*self.wrong/self.total))
-        print("Time: {:.2f}s".format(self.time_used))
-        print("Movetime: {}ms".format(self.timeper))
+    if args.movetime < 1:
+        print("ERROR: movetime must be >= 1")
+        exit(1)
+
+    if args.movetime > 10000:
+        print("WARNING: that's a lot of movetime")
+
+    if args.threads < 1:
+        print("ERROR: threads must be >= 1")
+        exit(2)
+
+    if args.threads > 4:
+        print("WARNING: that's a lot of threads")
+
+    tactics = Manager()
+    tactics.load(args.suite)
+    tactics.go(args.engine, args.movetime, args.threads, args.verbose)
