@@ -41,7 +41,7 @@ class Manager:
         self.q = queue.Queue()
         self.lock = threading.Lock()
 
-    def go(self, enginePath, depth=4, numThreads=1):
+    def go(self, enginePath, depth=4, numThreads=1, verbose=False):
         if self.q.qsize() < 1:
             print("ERROR: no positions loaded")
             return
@@ -56,7 +56,7 @@ class Manager:
         start = time.time()
         threads = []
         for i in range(numThreads):
-            t = threading.Thread(target=self.worker, args=([enginePath, depth]))
+            t = threading.Thread(target=self.worker, args=([enginePath, depth, verbose]))
             t.start()
             threads.append(t)
 
@@ -93,7 +93,7 @@ class Manager:
             return False
         return True
 
-    def worker(self, enginePath, depth):
+    def worker(self, enginePath, depth, verbose):
         try:
             p = Engine(enginePath)
         except Exception as e:
@@ -151,6 +151,7 @@ if __name__ == "__main__":
     parser.add_argument("-suite", type=str, help="path to the test suite")
     parser.add_argument("-depth", type=int, help="perft depth")
     parser.add_argument("-threads", type=int, help="threads to use")
+    parser.add_argument("-verbose", help="print extra details", action='store_true')
     args = parser.parse_args()
 
     if args.depth < 1:
@@ -169,4 +170,4 @@ if __name__ == "__main__":
 
     perft = Manager()
     perft.load(args.suite)
-    perft.go(args.engine, args.depth, args.threads)
+    perft.go(args.engine, args.depth, args.threads, args.verbose)
