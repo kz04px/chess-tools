@@ -35,6 +35,12 @@ class Engine:
     def running(self):
         return self.p.poll() == None
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        pass
+
 
 class Manager:
     def __init__(self):
@@ -94,55 +100,51 @@ class Manager:
         return True
 
     def worker(self, enginePath, depth, verbose):
-        try:
-            p = Engine(enginePath)
-        except Exception as e:
-            print(e)
-            return
+        with Engine(enginePath) as p:
+            p.send("uci\n")
+            p.send("isready\n")
 
-        p.send("uci\n")
-        p.send("isready\n")
+            while self.q.empty() == False:
+                line = self.q.get()
 
-        while self.q.empty() == False:
-            line = self.q.get()
+                try:
+                    board, results = chess.Board().from_epd(line)
+                except Exception as e:
+                    print("ERROR: {}".format(e))
+                    continue
 
-            try:
-                board, results = chess.Board().from_epd(line)
-            except Exception as e:
-                print("ERROR: {}".format(e))
-                continue
+                self.lock.acquire()
+                self.total += 1
+                self.lock.release()
+                fen = board.fen()
 
-            self.lock.acquire()
-            self.total += 1
-            self.lock.release()
-            fen = board.fen()
+                if p.running() == False:
+                    print("ERROR: engine stopped running")
+                    break
 
-            if p.running() == False:
-                print("ERROR: engine stopped running")
-                break
+                p.send("position fen {}\n".format(fen))
 
-            p.send("position fen {}\n".format(fen))
+                for d in range(1, depth+1):
+                    depthString = "D" + str(d)
 
-            for d in range(1, depth+1):
-                depthString = "D" + str(d)
+                    if depthString in results:
+                        p.send(("perft {}\n").format(d))
 
-                if depthString in results:
-                    p.send(("perft {}\n").format(d))
+                        nodes = p.get("nodes")
 
-                    nodes = p.get("nodes")
-
-                    if nodes != str(results[depthString]):
+                        if nodes != str(results[depthString]):
+                            self.lock.acquire()
+                            if verbose:
+                                print("Depth {}  got {}  expected {}  position {}".format(d, nodes, results[depthString], fen))
+                            self.incorrect += 1
+                            self.lock.release()
+                            break
+                    else:
                         self.lock.acquire()
                         if verbose:
-                            print("Depth {}  got {}  expected {}  position {}".format(d, nodes, results[depthString], fen))
-                        self.incorrect += 1
+                            print("WARNING: depth {} missing from position {}".format(d, fen))
                         self.lock.release()
-                        break
-                else:
-                    self.lock.acquire()
-                    if verbose:
-                        print("WARNING: depth {} missing from position {}".format(d, fen))
-                    self.lock.release()
+            p.send("quit\n")
 
 
 if __name__ == "__main__":
