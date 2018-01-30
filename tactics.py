@@ -4,6 +4,7 @@ import time
 import argparse
 import queue
 import threading
+import os
 
 
 class Manager:
@@ -23,7 +24,6 @@ class Manager:
         self.total = 0
         self.incorrect = 0
 
-        start = time.time()
         threads = []
         for i in range(numThreads):
             t = threading.Thread(target=self.worker, args=([enginePath, movetime, verbose]))
@@ -32,24 +32,17 @@ class Manager:
 
         for t in threads:
             t.join()
-        end = time.time()
 
         if self.total == 0:
             print("No positions analysed")
             return
 
-        print("Movetime: {}".format(movetime))
-        print("Engine: {}".format(enginePath))
-        print("")
-        print("Correct: {}".format(self.total - self.incorrect))
-        print("Incorrect: {}".format(self.incorrect))
-        print("Total: {}".format(self.total))
-        print("Accuracy: {:.2f}%".format(100.0*(self.total - self.incorrect)/self.total))
-        print("Threads: {}".format(numThreads))
-        print("Time: {:.2f}s".format(end - start))
+        print("{}/{}  {:.2f}%  {}".format(self.total - self.incorrect, self.total, 100.0*(self.total - self.incorrect)/self.total, self.path))
+        return self.total - self.incorrect, self.total
 
     def load(self, path):
         self.q.queue.clear()
+        self.path = path
         try:
             with open(path, "r") as f:
                 for line in f:
@@ -92,6 +85,8 @@ class Manager:
                 self.incorrect += 1
                 self.lock.release()
 
+        engine.quit()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='UCI chess engine tactics')
@@ -116,6 +111,42 @@ if __name__ == "__main__":
     if args.threads > 4:
         print("WARNING: that's a lot of threads")
 
+    tests = []
+
+    if os.path.isdir(args.suite):
+        for root, dirs, files in os.walk(args.suite):
+            for file in files:
+                if file.endswith(".epd"):
+                    tests.append(os.path.join(root, file))
+    elif os.path.isfile(args.suite):
+        tests.append(args.suite)
+    else:
+        print("No valid positions found at the path specified")
+        exit(3)
+
+    tests = sorted(tests)
+    correct = 0
+    total = 0
+
+    print("Settings")
+    print("Engine: {}".format(args.engine))
+    print("Movetime: {}ms".format(args.movetime))
+    print("Threads: {}".format(args.threads))
+    print("")
+
+    start = time.time()
     tactics = Manager()
-    tactics.load(args.suite)
-    tactics.go(args.engine, args.movetime, args.threads, args.verbose)
+    print("Tests")
+    for test in tests:
+        tactics.load(test)
+        c, t = tactics.go(args.engine, args.movetime, args.threads, args.verbose)
+        correct = correct + c
+        total = total + t
+    end = time.time()
+    print("")
+
+    print("Totals")
+    print("Time: {:.2f}s".format(end - start))
+    print("Correct: {}".format(correct))
+    print("Total: {}".format(total))
+    print("Accuracy: {:.2f}%".format(100.0*correct/total))
