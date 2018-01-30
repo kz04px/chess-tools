@@ -111,6 +111,10 @@ if __name__ == "__main__":
     if args.threads > 4:
         print("WARNING: that's a lot of threads")
 
+    if os.path.isfile(args.engine) == False:
+        print("Cannot find engine specified")
+        exit(3)
+
     tests = []
 
     if os.path.isdir(args.suite):
@@ -122,7 +126,7 @@ if __name__ == "__main__":
         tests.append(args.suite)
     else:
         print("No valid positions found at the path specified")
-        exit(3)
+        exit(4)
 
     tests = sorted(tests)
     correct = 0
