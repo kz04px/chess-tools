@@ -14,12 +14,8 @@ class Manager:
 
     def go(self, enginePath, movetime=100, numThreads=1, verbose=False):
         if self.q.qsize() < 1:
-            print("ERROR: no positions loaded")
-            return
-
-        if numThreads < 1:
-            print("ERROR: number of threads must be >= 1")
-            return
+            print("ERROR: no positions loaded ({})".format(self.path))
+            return 0, 0
 
         self.total = 0
         self.incorrect = 0
@@ -32,10 +28,6 @@ class Manager:
 
         for t in threads:
             t.join()
-
-        if self.total == 0:
-            print("No positions analysed")
-            return
 
         print("{}/{}  {:.2f}%  {}".format(self.total - self.incorrect, self.total, 100.0*(self.total - self.incorrect)/self.total, self.path))
         return self.total - self.incorrect, self.total
@@ -149,8 +141,9 @@ if __name__ == "__main__":
     end = time.time()
     print("")
 
-    print("Totals")
-    print("Time: {:.2f}s".format(end - start))
-    print("Correct: {}".format(correct))
-    print("Total: {}".format(total))
-    print("Accuracy: {:.2f}%".format(100.0*correct/total))
+    if total > 0:
+        print("Totals")
+        print("Time: {:.2f}s".format(end - start))
+        print("Correct: {}".format(correct))
+        print("Total: {}".format(total))
+        print("Accuracy: {:.2f}%".format(100.0*correct/total))
