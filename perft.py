@@ -41,110 +41,69 @@ class Engine:
     def __exit__(self, exc_type, exc_value, traceback):
         pass
 
+q = queue.Queue()
+lock = threading.Lock()
+correct = 0
+incorrect = 0
 
-class Manager:
-    def __init__(self):
-        self.q = queue.Queue()
-        self.lock = threading.Lock()
+def read_epd(path):
+    with open(path) as f:
+        for line in f:
+            try:
+                board, results = chess.Board().from_epd(line)
 
-    def go(self, enginePath, depth=4, numThreads=1, verbose=False):
-        if self.q.qsize() < 1:
-            print("ERROR: no positions loaded")
-            return
+                nodes = []
+                for key, val in results.items():
+                    if not key.startswith("D"):
+                        continue
+                    nodes.append(val)
 
-        if numThreads < 1:
-            print("ERROR: number of threads must be >= 1")
-            return
+                q.put((board.fen(), nodes))
+            except:
+                pass
 
-        self.total = 0
-        self.incorrect = 0
+def worker(path, depth, verbose):
+    global correct
+    global incorrect
 
-        start = time.time()
-        threads = []
-        for i in range(numThreads):
-            t = threading.Thread(target=self.worker, args=([enginePath, depth, verbose]))
-            t.start()
-            threads.append(t)
+    with Engine(path) as e:
+        e.send("uci\n")
+        e.send("isready\n")
 
-        for t in threads:
-            t.join()
-        end = time.time()
+        while not q.empty():
+            fen, nodes = q.get()
 
-        if self.total == 0:
-            print("No positions analysed")
-            return
+            if verbose:
+                print(F"Working: {fen}")
 
-        print(F"Depth: {depth}")
-        print(F"Engine: {enginePath}")
-        print("")
-        print(F"Correct: {self.total - self.incorrect}")
-        print(F"Incorrect: {self.incorrect}")
-        print(F"Total: {self.total}")
-        print(F"Accuracy: {100.0*(self.total - self.incorrect)/self.total:.2f}%")
-        print(F"Threads: {numThreads}")
-        print(F"Time: {end - start:.2f}s")
+            e.send("ucinewgame\n")
+            e.send(F"position fen {fen}\n")
 
-    def load(self, path):
-        self.q.queue.clear()
-        try:
-            with open(path, "r") as f:
-                for line in f:
-                    try:
-                        board, results = chess.Board().from_epd(line)
-                        self.q.put(line)
-                    except:
-                        pass
-        except Exception as e:
-            print(e)
-            return False
-        return True
+            right = True
 
-    def worker(self, enginePath, depth, verbose):
-        with Engine(enginePath) as p:
-            p.send("uci\n")
-            p.send("isready\n")
-
-            while self.q.empty() == False:
-                line = self.q.get()
-
-                try:
-                    board, results = chess.Board().from_epd(line)
-                except Exception as e:
-                    print(F"ERROR: {e}")
-                    continue
-
-                self.lock.acquire()
-                self.total += 1
-                self.lock.release()
-                fen = board.fen()
-
-                if p.running() == False:
-                    print("ERROR: engine stopped running")
+            for d in range(depth):
+                # Break if the position doesn't have enough
+                # results for the depth specified
+                if d >= len(nodes):
+                    if verbose:
+                        print(F"WARNING: depth {d+1} not found for {fen}")
                     break
 
-                p.send(F"position fen {fen}\n")
+                # Ask the engine to run perft
+                e.send((F"perft {d+1}\n"))
+                n = int(e.get("nodes"))
 
-                for d in range(1, depth+1):
-                    depthString = "D" + str(d)
+                if n != nodes[d]:
+                    if verbose:
+                        print(F"ERROR: depth {d+1} expected {nodes[d]} got {n} for {fen}")
+                    right = False
+                    break
 
-                    if depthString in results:
-                        p.send((F"perft {d}\n"))
-
-                        nodes = p.get("nodes")
-
-                        if nodes != str(results[depthString]):
-                            self.lock.acquire()
-                            if verbose:
-                                print(F"Depth {d}  got {nodes}  expected {results[depthString]}  position {fen}")
-                            self.incorrect += 1
-                            self.lock.release()
-                            break
-                    else:
-                        self.lock.acquire()
-                        if verbose:
-                            print(F"WARNING: depth {d} missing from position {fen}")
-                        self.lock.release()
-            p.send("quit\n")
+            with lock:
+                if right:
+                    correct += 1
+                else:
+                    incorrect += 1
 
 def main():
     parser = argparse.ArgumentParser(description='UCI chess engine perft')
@@ -166,9 +125,40 @@ def main():
     args.depth = max(args.depth, 1)
     args.threads = max(args.threads, 1)
 
-    perft = Manager()
-    perft.load(args.suite)
-    perft.go(args.engine, args.depth, args.threads, args.verbose)
+    # Load positions from .epd
+    read_epd(args.suite)
+
+    # Create worker threads
+    threads = []
+    for i in range(args.threads):
+        t = threading.Thread(target=worker, args=(args.engine, args.depth, args.verbose))
+        threads.append(t)
+
+    # Details
+    print(F"{q.qsize()} positions loaded")
+
+    # Start timing
+    t0 = time.time()
+
+    # Start working
+    for t in threads:
+        t.start()
+
+    # Wait
+    for t in threads:
+        t.join()
+
+    # Stop timing
+    t1 = time.time()
+
+    # Results
+    total = correct+incorrect
+    print(F"Time:      {t1-t0:.2f}s")
+    print(F"Depth:     {args.depth}")
+    print(F"Threads:   {args.threads}")
+    print(F"Correct:   {correct} ({100*correct/total:.1f}%)")
+    print(F"Incorrect: {incorrect} ({100*incorrect/total:.1f}%)")
+    print(F"Total:     {total}")
 
 if __name__ == "__main__":
     main()
