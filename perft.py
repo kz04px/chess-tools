@@ -4,7 +4,7 @@ import time
 import argparse
 import queue
 import threading
-
+import os
 
 class Engine:
     def __init__(self, path):
@@ -146,30 +146,29 @@ class Manager:
                         self.lock.release()
             p.send("quit\n")
 
-
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description='UCI chess engine perft')
     parser.add_argument("-engine", type=str, help="path to the engine")
     parser.add_argument("-suite", type=str, help="path to the test suite")
-    parser.add_argument("-depth", type=int, help="perft depth")
-    parser.add_argument("-threads", type=int, help="threads to use")
+    parser.add_argument("-depth", type=int, default=1, help="perft depth")
+    parser.add_argument("-threads", type=int, default=1, help="threads to use")
     parser.add_argument("-verbose", help="print extra details", action='store_true')
     args = parser.parse_args()
 
-    if args.depth < 1:
-        print("ERROR: depth must be >= 1")
-        exit(1)
+    if not os.path.isfile(args.engine):
+        print("Engine file not found")
+        return
 
-    if args.depth > 7:
-        print("WARNING: that's a lot of depth")
+    if not os.path.isfile(args.suite):
+        print("Suite file not found")
+        return
 
-    if args.threads < 1:
-        print("ERROR: threads must be >= 1")
-        exit(2)
-
-    if args.threads > 4:
-        print("WARNING: that's a lot of threads")
+    args.depth = max(args.depth, 1)
+    args.threads = max(args.threads, 1)
 
     perft = Manager()
     perft.load(args.suite)
     perft.go(args.engine, args.depth, args.threads, args.verbose)
+
+if __name__ == "__main__":
+    main()
