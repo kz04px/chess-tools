@@ -74,15 +74,15 @@ class Manager:
             print("No positions analysed")
             return
 
-        print("Depth: {}".format(depth))
-        print("Engine: {}".format(enginePath))
+        print(F"Depth: {depth}")
+        print(F"Engine: {enginePath}")
         print("")
-        print("Correct: {}".format(self.total - self.incorrect))
-        print("Incorrect: {}".format(self.incorrect))
-        print("Total: {}".format(self.total))
-        print("Accuracy: {:.2f}%".format(100.0*(self.total - self.incorrect)/self.total))
-        print("Threads: {}".format(numThreads))
-        print("Time: {:.2f}s".format(end - start))
+        print(F"Correct: {self.total - self.incorrect}")
+        print(F"Incorrect: {self.incorrect}")
+        print(F"Total: {self.total}")
+        print(F"Accuracy: {100.0*(self.total - self.incorrect)/self.total:.2f}%")
+        print(F"Threads: {numThreads}")
+        print(F"Time: {end - start:.2f}s")
 
     def load(self, path):
         self.q.queue.clear()
@@ -110,7 +110,7 @@ class Manager:
                 try:
                     board, results = chess.Board().from_epd(line)
                 except Exception as e:
-                    print("ERROR: {}".format(e))
+                    print(F"ERROR: {e}")
                     continue
 
                 self.lock.acquire()
@@ -122,27 +122,27 @@ class Manager:
                     print("ERROR: engine stopped running")
                     break
 
-                p.send("position fen {}\n".format(fen))
+                p.send(F"position fen {fen}\n")
 
                 for d in range(1, depth+1):
                     depthString = "D" + str(d)
 
                     if depthString in results:
-                        p.send(("perft {}\n").format(d))
+                        p.send((F"perft {d}\n"))
 
                         nodes = p.get("nodes")
 
                         if nodes != str(results[depthString]):
                             self.lock.acquire()
                             if verbose:
-                                print("Depth {}  got {}  expected {}  position {}".format(d, nodes, results[depthString], fen))
+                                print(F"Depth {d}  got {nodes}  expected {results[depthString]}  position {fen}")
                             self.incorrect += 1
                             self.lock.release()
                             break
                     else:
                         self.lock.acquire()
                         if verbose:
-                            print("WARNING: depth {} missing from position {}".format(d, fen))
+                            print(F"WARNING: depth {d} missing from position {fen}")
                         self.lock.release()
             p.send("quit\n")
 
