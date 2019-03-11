@@ -1,18 +1,8 @@
 import chess
 import subprocess
 import time
-
-
-#  Results for startpos
-#  Depth          Nodes
-#  1                 20
-#  2                400
-#  3              8,902
-#  4            197,281
-#  5          4,865,609
-#  6        119,060,324
-#  7      3,195,901,860
-
+import argparse
+import os
 
 class Engine:
     def __init__(self, path):
@@ -43,33 +33,64 @@ class Engine:
     def running(self):
         return self.p.poll() == None
 
+def main():
+    parser = argparse.ArgumentParser(description='UCI chess engine perft')
+    parser.add_argument("-engine", type=str, required=True, help="path to the engine")
+    parser.add_argument(
+        "-fen",
+        type=str,
+        default="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+        help="fen string to test"
+    )
+    parser.add_argument("-depth", type=int, default=1, help="perft depth")
+    args = parser.parse_args()
 
-if __name__ == "__main__":
-    enginePath = "engines/baislicka"
-    depth = 1
+    if not os.path.isfile(args.engine):
+        print("Engine file not found")
+        return
 
-    p = Engine(enginePath)
-    p.send("uci\n")
-    p.send("isready\n")
+    args.depth = max(args.depth, 1)
 
-    board = chess.Board()
+    # Check the provided fen string
+    try:
+        board = chess.Board(args.fen)
+    except:
+        print(F"Illegal fen {args.fen}")
+        return
 
-    #board.push(chess.Move.from_uci("d2d3"))
-    #board.push(chess.Move.from_uci("b7b5"))
-    #board.push(chess.Move.from_uci("e1d2"))
-    #board.push(chess.Move.from_uci("b5b4"))
+    # Start the engine
+    e = Engine(args.engine)
+    e.send("uci\n")
+    e.send("isready\n")
 
-    print(board)
-
-    print("Depth: {}".format(depth))
     total = 0
     for idx, move in enumerate(board.legal_moves):
-        nboard = chess.Board(board.fen())
+        # Reset the engine
+        e.send("ucinewgame\n")
+
+        # Reset the position
+        nboard = chess.Board(args.fen)
+
+        # Apply the next move
         nboard.push(move)
 
-        p.send("position fen {}\n".format(nboard.fen()))
-        p.send(("perft {}\n").format(depth))
-        nodes = p.get("nodes")
-        total = total + int(nodes)
-        print("{}:  {}  {}".format(idx+1, move, nodes))
-    print("Total: {}".format(total))
+        print(F"{idx+1}:  {move}", end="")
+
+        # Perft
+        if args.depth > 1:
+            e.send("position fen {}\n".format(nboard.fen()))
+            e.send(("perft {}\n").format(args.depth-1))
+            nodes = int(e.get("nodes"))
+            total += nodes
+
+            # Results
+            print(F"  {nodes}", end="")
+        else:
+            total += 1
+
+        print("")
+
+    print(F"Total: {total}")
+
+if __name__ == "__main__":
+    main()
