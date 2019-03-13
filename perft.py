@@ -107,8 +107,8 @@ def worker(path, depth, verbose):
 
 def main():
     parser = argparse.ArgumentParser(description='UCI chess engine perft')
-    parser.add_argument("-engine", type=str, help="path to the engine")
-    parser.add_argument("-suite", type=str, help="path to the test suite")
+    parser.add_argument("-engine", type=str, required=True, help="path to the engine")
+    parser.add_argument("-suite", type=str, required=True, help="path to the test suite")
     parser.add_argument("-depth", type=int, default=1, help="perft depth")
     parser.add_argument("-threads", type=int, default=1, help="threads to use")
     parser.add_argument("-verbose", help="print extra details", action='store_true')
