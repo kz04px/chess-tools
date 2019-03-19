@@ -1,0 +1,4 @@
+7k/8/R7/1R6/7K/8/7P/8 w - - bm h3; hmvc 99; id "50moves.white.0001";
+8/7p/8/7k/1r6/r7/8/7K b - - bm h6; hmvc 99; id "50moves.black.0001";
+8/8/8/P7/8/6n1/3R4/R3K2k w Q - bm a6; hmvc 99; id "50moves.white.0002";
+r3k2K/3r4/6N1/8/p7/8/8/8 b q - bm a3; hmvc 99; id "50moves.black.0002";
