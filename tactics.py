@@ -107,7 +107,7 @@ def main():
                 if file.endswith(".epd"):
                     tests.append(os.path.join(root, file))
     elif os.path.isfile(args.suite):
-        tests.append(os.path.join(root, file))
+        tests.append(args.suite)
     else:
         print("No valid positions found at the path specified")
         return
