@@ -1,5 +1,5 @@
 import chess
-import chess.uci
+import chess.engine
 import time
 import argparse
 import queue
@@ -42,24 +42,19 @@ def worker(path, movetime, verbose):
     global incorrect
 
     try:
-        e = chess.uci.popen_engine(path)
-        e.uci()
-        e.isready()
+        engine = chess.engine.SimpleEngine.popen_uci(path)
 
         while not q.empty():
             board, answer = q.get()
-
-            e.ucinewgame()
-            e.position(board)
-            bestmove, _ = e.go(movetime=movetime)
+            result = engine.play(board, chess.engine.Limit(time=movetime/1000))
 
             with lock:
-                if bestmove == answer:
+                if result.move == answer:
                     correct += 1
                 else:
                     incorrect += 1
 
-        e.quit()
+        engine.quit()
     except:
         pass
 
